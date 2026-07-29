@@ -1,0 +1,18 @@
+model:
+  bert_name: "bert-base-uncased"
+  vit_name: "vit_base_patch16_224"
+  max_len: 128
+  fusion_dim: 1536
+  hidden_dim: 256
+  num_classes: 2
+
+training:
+  batch_size: 16
+  lr: 1e-3
+  epochs: 10
+  weight_decay: 0.01
+  seed: 42
+
+paths:
+  train_csv: "/kaggle/input/.../train.csv"
+  classifier_output: "backend/model/classifier_head.pt"
