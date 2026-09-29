@@ -1,10 +1,22 @@
-@"
-backend/venv/
+# Python virtual environments
 venv/
+.venv/
 __pycache__/
 *.pyc
-frontend/node_modules/
-frontend/dist/
+
+# Node
+node_modules/
+dist/
+.dist/
+
+# Trained model weights — GitHub hard-rejects anything over 100MB
+*.pt
+*.pth
+*.safetensors
+
+# Environment / secrets
+.env
+
+# OS / editor junk
 .DS_Store
-.vscode/
-"@ | Out-File -FilePath .gitignore -Encoding utf8
+Thumbs.db
