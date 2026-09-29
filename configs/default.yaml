@@ -1,18 +1,18 @@
 model:
-  bert_name: "bert-base-uncased"
+  text_model_name: "roberta-base"
   vit_name: "vit_base_patch16_224"
   max_len: 128
-  fusion_dim: 1536
+  fusion_dim: 512       # 256 (szöveg projekció) + 256 (kép projekció)
   hidden_dim: 256
   num_classes: 2
 
 training:
   batch_size: 16
-  lr: 1e-3
-  epochs: 10
+  lr: 2e-5              # Finomhangoláshoz (Fine-tuning) optimalizálva
+  epochs: 4             # 4 epoch bőven elég a csúcspontossághoz
   weight_decay: 0.01
   seed: 42
 
 paths:
   train_csv: "/kaggle/input/.../train.csv"
-  classifier_output: "backend/model/classifier_head.pt"
+  classifier_output: "backend/model/best_robust_multimodal.pt"

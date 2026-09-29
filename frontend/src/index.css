@@ -1,3 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  background-color: #0B0F14;
+}
+
+@keyframes scan {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(51, 214, 192, 0.18), transparent);
+  animation: scan 1.3s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes settle {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.settle {
+  animation: settle 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bar-pulse {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+.bar-pulse {
+  animation: bar-pulse 0.9s ease-in-out infinite;
+  transform-origin: bottom;
+}
