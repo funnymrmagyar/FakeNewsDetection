@@ -329,6 +329,4 @@ Known limitations:
 
 ---
 
-## License
 
-No license has been specified yet. Add a `LICENSE` file before distributing this project.
