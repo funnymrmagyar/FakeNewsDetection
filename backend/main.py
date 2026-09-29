@@ -1,6 +1,11 @@
 import io
 import os
 import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 import requests
 from pathlib import Path
 from PIL import Image
@@ -104,6 +109,16 @@ print(f"✅ Képi modell betöltve: {image_model_path.name}")
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Fake News Detection API is running"}
+
+
+@app.get("/predict")
+def predict_info():
+    return {
+        "status": "info",
+        "message": "A /predict végpont POST kérést vár (szöveg, képfájl vagy képlink).",
+        "docs": "http://localhost:8000/docs",
+        "frontend": "http://localhost:5173"
+    }
 
 
 @app.post("/predict")
