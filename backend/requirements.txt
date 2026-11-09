@@ -7,3 +7,5 @@ transformers
 timm
 pillow
 requests
+pandas
+numpy

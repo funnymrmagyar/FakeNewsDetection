@@ -1,10 +1,19 @@
-fastapi
-uvicorn[standard]
-python-multipart
+# Tanítás / kutatás (Kaggle-en ezek többsége előre telepítve van)
 torch
 torchvision
 transformers
 timm
 pillow
-requests
 numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+tqdm
+tabulate
+shap
+# Backend
+fastapi
+uvicorn[standard]
+python-multipart
+requests

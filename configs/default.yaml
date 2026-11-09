@@ -1,18 +1,24 @@
+# A terv magja: fagyasztott enkóderek + előre kiszámolt embeddingek + kis fúziós fej.
+# A szkriptek parancssori argumentumokat használnak; ezek az alapértékeik, egy helyen dokumentálva.
 model:
-  text_model_name: "roberta-base"
-  vit_name: "vit_base_patch16_224"
+  text_model_name: "bert-base-uncased"   # [CLS] token, fagyasztva
+  image_model_name: "vit_base_patch16_224" # timm, num_classes=0, fagyasztva
+  cnn_baseline: "resnet18"               # RQ1 összevetéshez
+  caption_model: "Salesforce/blip-image-captioning-base"  # 3. fázis (RQ2)
   max_len: 128
-  fusion_dim: 512       # 256 (szöveg projekció) + 256 (kép projekció)
   hidden_dim: 256
-  num_classes: 2
+  dropout: 0.3
+  num_classes: 2                         # 0 = real, 1 = fake
 
 training:
-  batch_size: 16
-  lr: 2e-5              # Finomhangoláshoz (Fine-tuning) optimalizálva
-  epochs: 4             # 4 epoch bőven elég a csúcspontossághoz
+  batch_size: 256
+  lr: 1.0e-3        # csak a kis fej tanul, ezért nagyobb lr, mint finomhangolásnál
   weight_decay: 0.01
-  seed: 42
+  epochs: 30
+  patience: 5       # early stopping a val F1-re
+  seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]  # 10 seed a Wilcoxon-teszthez
+  modality_dropout: 0.15  # a hiány-vektorok tanításához (webapp: csak-szöveg / csak-kép)
 
-paths:
-  train_csv: "/kaggle/input/.../train.csv"
-  classifier_output: "backend/model/best_robust_multimodal.pt"
+data:
+  split: [0.70, 0.15, 0.15]  # rétegzett, seed 42
+  dedup_titles: true

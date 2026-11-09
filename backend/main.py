@@ -1,205 +1,150 @@
 import io
 import os
 import sys
+from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import requests
-from pathlib import Path
-from PIL import Image
 import torch
-import torch.nn as nn
-from torchvision import transforms, models
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 
-# --- Projekt gyökérútvonalának meghatározása ---
-CURRENT_FILE = Path(__file__).resolve()
-BASE_DIR = CURRENT_FILE.parent.parent if CURRENT_FILE.parent.name == "backend" else CURRENT_FILE.parent
+# --- Útvonalak: a projekt gyökere (az src csomag miatt) és a backend mappa (legacy.py) ---
+BACKEND_DIR = Path(__file__).resolve().parent
+BASE_DIR = BACKEND_DIR.parent
+for p in (str(BASE_DIR), str(BACKEND_DIR)):
+    if p not in sys.path:
+        sys.path.append(p)
 
-if str(BASE_DIR) not in sys.path:
-    sys.path.append(str(BASE_DIR))
+from src.explain.shap_analysis import contributions_for_api, load_head, modality_shapley  # noqa: E402
+from src.models.encoders import (MODALITY_NAMES, CaptionGenerator, ClipScorer,  # noqa: E402
+                                 ImageEncoder, TextEncoder)
 
-# --- FastAPI App Setup ---
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+MODEL_DIR = BACKEND_DIR / "model"
+FUSION_CKPT = Path(os.environ.get("FUSION_CKPT", MODEL_DIR / "fusion_head.pt"))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class FusionPipeline:
+    """Fagyasztott enkóderek (ugyanaz a kód, mint a tanításnál) + betanított fúziós fej."""
+    engine = "fusion"
+
+    def __init__(self, ckpt_path):
+        self.head, self.ck = load_head(ckpt_path, device)
+        self.features = self.ck["features"]
+        self.names = [MODALITY_NAMES[f] for f in self.features]
+        needs_text = any(f in ("text_bert", "caption_bert") for f in self.features)
+        self.text_enc = TextEncoder(device=device) if needs_text else None
+        self.img_enc = None
+        if "img_vit" in self.features:
+            self.img_enc = ImageEncoder("vit", device=device)
+        elif "img_resnet18" in self.features:
+            self.img_enc = ImageEncoder("resnet18", device=device)
+        self.captioner = CaptionGenerator(device=device) if "caption_bert" in self.features else None
+        self.clip = ClipScorer(device=device) if "clip_score" in self.features else None
+
+    def info(self):
+        t = self.ck.get("test", {})
+        return {"engine": self.engine, "model": self.ck.get("name"), "seed": self.ck.get("seed"),
+                "features": self.features, "fusion": "concat + MLP",
+                "test_f1": t.get("f1"), "test_acc": t.get("acc"), "test_auc": t.get("auc")}
+
+    @torch.no_grad()
+    def predict(self, text, image):
+        caption = self.captioner.generate([image])[0] if (self.captioner and image is not None) else None
+        feats, masks = [], []
+        for f in self.features:
+            if f == "text_bert":
+                ok, vec = bool(text), self.text_enc.encode([text or ""])
+            elif f == "caption_bert":
+                ok, vec = bool(caption), self.text_enc.encode([caption or "[no image]"])
+            elif f == "clip_score":
+                ok = image is not None and bool(text)
+                vec = self.clip.score([text or ""], [image if ok else None])
+            else:
+                ok = image is not None
+                vec = self.img_enc.encode([image]) if ok else torch.zeros(1, self.head.dims[len(feats)]).numpy()
+            feats.append(torch.from_numpy(vec).float().to(device))
+            masks.append(torch.tensor([ok], device=device))
+        phi, _, prob = modality_shapley(self.head, feats, masks)
+        present = [i for i, m in enumerate(masks) if bool(m[0])]
+        contrib = contributions_for_api(phi[0, present].cpu().numpy(), [self.names[i] for i in present])
+        return {"prob_fake": float(prob[0]), "contributions": contrib, "caption": caption}
+
+
 print(f"🖥️ Használt eszköz: {device}")
+if FUSION_CKPT.exists():
+    print(f"⏳ Fúziós modell betöltése: {FUSION_CKPT.name}")
+    pipeline = FusionPipeline(FUSION_CKPT)
+else:
+    from legacy import LegacyPipeline
+    print(f"⚠️ Nincs {FUSION_CKPT.name}, a régi (WELFake + ResNet18) modellek töltődnek be.")
+    pipeline = LegacyPipeline(MODEL_DIR, device)
+print(f"✅ Kész: {pipeline.info()}")
 
-# --- Tokenizer & Kép transzformációk ---
-print("⏳ BERT Tokenizer és Kép transzformációk betöltése...")
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-
-image_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-# --- MODELL STRUKTÚRÁK DEFINIÁLÁSA ---
-
-# 1. KÉPI MODELL (ResNet18 - a Kaggle tanításod alapján)
-def get_image_model():
-    model = models.resnet18(weights=None)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Sequential(
-        nn.Dropout(0.3),
-        nn.Linear(num_ftrs, 2)
-    )
-    return model
-
-# 2. SZÖVEGES MODELL (BERT)
-class TextClassifier(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.bert = AutoModel.from_pretrained("bert-base-uncased")
-        self.classifier = nn.Linear(768, 2)
-
-    def forward(self, input_ids, attention_mask):
-        out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        feat = getattr(out, 'pooler_output', out.last_hidden_state[:, 0, :])
-        return self.classifier(feat)
+app = FastAPI(title="Fake News Detection API")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
-# --- 2 KÜLÖN MODELL BETÖLTÉSE ---
-print("⏳ Modellfájlok betöltése...")
-
-MODEL_DIR = BASE_DIR / "backend" / "model"
-if not MODEL_DIR.exists():
-    MODEL_DIR = BASE_DIR / "model"
-
-text_model_path = MODEL_DIR / "text_only_bert.pt"
-image_model_path = MODEL_DIR / "best_image_model.pt"
-
-# Útvonalak ellenőrzése
-if not text_model_path.exists():
-    raise FileNotFoundError(f"❌ A szöveges modell nem található itt: {text_model_path}")
-if not image_model_path.exists():
-    raise FileNotFoundError(f"❌ A képi modell nem található itt: {image_model_path}")
-
-# Szöveges modell betöltése
-text_model = TextClassifier().to(device)
-try:
-    text_model.load_state_dict(torch.load(text_model_path, map_location=device))
-except Exception:
-    # Ha AutoModelForSequenceClassification-nel lett elmentve:
-    text_model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2).to(device)
-    text_model.load_state_dict(torch.load(text_model_path, map_location=device))
-
-text_model.eval()
-print(f"✅ Szöveges modell betöltve: {text_model_path.name}")
-
-# Képi modell betöltése
-image_model = get_image_model().to(device)
-image_model.load_state_dict(torch.load(image_model_path, map_location=device))
-image_model.eval()
-print(f"✅ Képi modell betöltve: {image_model_path.name}")
-
-
-# --- Útvonalak (Routes) ---
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Fake News Detection API is running"}
 
 
+@app.get("/model-info")
+def model_info():
+    return pipeline.info()
+
+
 @app.get("/predict")
 def predict_info():
-    return {
-        "status": "info",
-        "message": "A /predict végpont POST kérést vár (szöveg, képfájl vagy képlink).",
-        "docs": "http://localhost:8000/docs",
-        "frontend": "http://localhost:5173"
-    }
+    return {"status": "info", "message": "A /predict végpont POST kérést vár (szöveg, képfájl vagy képlink).",
+            "docs": "http://localhost:8000/docs", "frontend": "http://localhost:5173"}
 
 
 @app.post("/predict")
-async def predict(
-    text: str = Form(None),
-    image_url: str = Form(None),
-    file: UploadFile = File(None)
-):
+async def predict(text: str = Form(None), image_url: str = Form(None), file: UploadFile = File(None)):
     image = None
-    has_text = bool(text and text.strip() != "")
+    text = (text or "").strip()
+    has_text = text != ""
 
-    # 1. Kép beolvasása (Fájlból vagy URL-ből)
-    if file is not None and file.filename != "":
+    if file is not None and file.filename:
         try:
-            contents = await file.read()
-            image = Image.open(io.BytesIO(contents)).convert("RGB")
+            image = Image.open(io.BytesIO(await file.read())).convert("RGB")
         except Exception as e:
             return {"error": f"Érvénytelen képfájl: {e}"}
-            
     elif image_url and image_url.strip().lower() not in ["", "string", "null", "undefined"]:
-        clean_url = image_url.strip()
-        if not (clean_url.startswith("http://") or clean_url.startswith("https://")):
-            return {"error": f"Érvénytelen URL formátum: '{clean_url}'."}
-            
+        url = image_url.strip()
+        if not url.startswith(("http://", "https://")):
+            return {"error": f"Érvénytelen URL formátum: '{url}'."}
         try:
-            resp = requests.get(clean_url, timeout=5)
+            resp = requests.get(url, timeout=5, headers={"User-Agent": "FakeNewsDetection/1.0"})
             resp.raise_for_status()
             image = Image.open(io.BytesIO(resp.content)).convert("RGB")
         except Exception as e:
             return {"error": f"Nem sikerült betölteni a képet az URL-ről: {e}"}
 
-    has_image = bool(image is not None)
-
+    has_image = image is not None
     if not has_text and not has_image:
         return {"error": "Adj meg legalább egy szöveget vagy egy képet!"}
 
-    # 2. Előrejelzés kiszámítása
-    text_probs = None
-    image_probs = None
-
-    with torch.no_grad():
-        # Csak szöveg futtatása (ha van szöveg)
-        if has_text:
-            encoding = tokenizer(
-                text.strip(),
-                truncation=True,
-                padding='max_length',
-                max_length=128,
-                return_tensors='pt'
-            ).to(device)
-            text_out = text_model(input_ids=encoding['input_ids'], attention_mask=encoding['attention_mask'])
-            if hasattr(text_out, 'logits'):
-                text_out = text_out.logits
-            text_probs = torch.softmax(text_out, dim=1)[0]
-
-        # Csak kép futtatása (ha van kép)
-        if has_image:
-            img_tensor = image_transform(image).unsqueeze(0).to(device)
-            image_out = image_model(img_tensor)
-            image_probs = torch.softmax(image_out, dim=1)[0]
-
-        # 3. Kimenetek kombinálása (Ensemble / Late Fusion)
-        if has_text and has_image:
-            # Ha mindkettő megvan -> 50%-50% súlyozott átlag
-            final_probs = 0.5 * text_probs + 0.5 * image_probs
-            mode = "multimodal"
-        elif has_text:
-            final_probs = text_probs
-            mode = "text_only"
-        else:
-            final_probs = image_probs
-            mode = "image_only"
-
-    real_prob = round(float(final_probs[0]) * 100, 2)
-    fake_prob = round(float(final_probs[1]) * 100, 2)
-
+    out = pipeline.predict(text if has_text else None, image)
+    fake_prob = round(out["prob_fake"] * 100, 2)
+    real_prob = round(100 - fake_prob, 2)
+    mode = "multimodal" if has_text and has_image else ("text_only" if has_text else "image_only")
     return {
         "real_prob": real_prob,
         "fake_prob": fake_prob,
         "label": 0 if real_prob > fake_prob else 1,
         "has_text": has_text,
         "has_image": has_image,
-        "mode": mode
+        "mode": mode,
+        "engine": pipeline.engine,
+        "contributions": out["contributions"],
+        "caption": out["caption"],
     }

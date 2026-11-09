@@ -90,8 +90,8 @@ export default function App() {
           </h1>
           <p className="mt-3 text-muted max-w-lg leading-relaxed">
             Illeszd be a hír szövegét, vagy csatolj hozzá képet (akár külön-külön is). A
-            rendszer BERT és ResNet alapú elemzést futtat, és valószínűségi
-            ítéletet ad a hitelességről.
+            rendszer BERT és Vision Transformer alapú elemzést futtat, valószínűségi
+            ítéletet ad a hitelességről, és megmutatja, melyik bemenet mennyire befolyásolta.
           </p>
 
           {/* waveform motif */}
@@ -233,13 +233,53 @@ export default function App() {
                 <span>VALÓS {result.real_prob}%</span>
               </div>
 
+              {/* Generált képaláírás (BLIP) */}
+              {result.caption && (
+                <div className="mt-6">
+                  <div className="font-mono text-[11px] tracking-[0.15em] text-muted uppercase mb-1">
+                    A modell szerint a képen
+                  </div>
+                  <div className="text-sm italic text-[#E7EDF3]/90">„{result.caption}”</div>
+                </div>
+              )}
+
+              {/* Modalitás-hozzájárulás (Shapley-értékek) */}
+              {result.contributions && result.contributions.length > 0 && (
+                <div className="mt-6">
+                  <div className="font-mono text-[11px] tracking-[0.15em] text-muted uppercase mb-2">
+                    Mi befolyásolta a döntést
+                  </div>
+                  <div className="flex h-3 rounded-full overflow-hidden border border-panelBorder">
+                    {result.contributions.map((c) => (
+                      <div
+                        key={c.modality}
+                        className={`${c.direction === "fake" ? "bg-fake/70" : "bg-real/70"} border-r border-ink last:border-r-0 transition-all duration-700`}
+                        style={{ width: `${c.share}%` }}
+                        title={`${c.modality}: ${c.share}%`}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    {result.contributions.map((c) => (
+                      <div key={c.modality} className="flex justify-between text-xs font-mono">
+                        <span className="text-[#E7EDF3]">{c.modality}</span>
+                        <span className={c.direction === "fake" ? "text-fake" : "text-real"}>
+                          {c.share}% · {c.direction === "fake" ? "álhír felé" : "valós felé"} húz
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Dynamic mode info */}
               <div className="mt-4 text-xs text-muted/80 font-mono">
-                {result.mode === "text_only" || (result.has_text && !result.has_image)
-                  ? "* csak szöveges elemzés (BERT)"
-                  : result.mode === "image_only" || (!result.has_text && result.has_image)
-                  ? "* csak képi elemzés (ResNet)"
-                  : "* multimodális elemzés (Szöveg + Kép)"}
+                {result.mode === "text_only"
+                  ? "* csak szöveges elemzés"
+                  : result.mode === "image_only"
+                  ? "* csak képi elemzés"
+                  : "* multimodális elemzés (szöveg + kép)"}
+                {result.engine === "legacy" && " · régi modell (a fúziós fej még nincs betanítva)"}
               </div>
             </div>
           )}
