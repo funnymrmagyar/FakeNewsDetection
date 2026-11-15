@@ -1,0 +1,17 @@
+id,label,text,phi_szöveg,phi_kép,phi_képaláírás,prob_fake,pred,dominant,miért
+ckdever,1,what the what,0.2885034,0.28891268,-0.028370472,0.9999999,1,kép,"helyes, a kép döntött"
+dgwfepp,1,trumpster,0.26628107,0.33572736,-0.052985527,0.9999771,1,kép,"helyes, a kép döntött"
+3osu3s,1,hal easterwood a sweet wife,0.16196401,0.45302784,-0.06616188,0.9997842,1,kép,"helyes, a kép döntött"
+8cv1ef,1,blackberry pie,0.31568432,0.042110577,-0.063931674,0.74481744,1,szöveg,"helyes, a szöveg döntött"
+cgyepz,0,after years of use my id has been burnt into the plastic cover of my wallet,-0.5689787,0.17246553,-0.04490019,0.009540849,0,szöveg,"helyes, a szöveg döntött"
+ceo915,1,beginning of the civil rights movement,0.51798165,0.007419695,0.02338182,0.9997373,1,szöveg,"helyes, a szöveg döntött"
+99r16n,0,these two drones,0.0358193,0.4482044,0.065007076,0.999985,1,kép,magabiztos tévedés
+72257o,1,bear about to attack a car,-0.18643895,-0.21320614,-0.051293444,1.5699097e-05,0,kép,magabiztos tévedés
+ay2tz3,0,today marks years since the release of the watchmen,0.2745598,0.32128736,-0.046826992,0.99997437,1,kép,magabiztos tévedés
+7khb1v,0,sleeping greyhound,0.29508495,0.32017773,-0.06627363,0.99994326,1,kép,magabiztos tévedés
+2p70jz,0,woebegone pug,0.37662897,0.1986822,-0.026332516,0.9999329,1,szöveg,magabiztos tévedés
+19okhj,0,lick them over there canadian war poster,0.24610913,0.3058383,-0.0029897096,0.9999119,1,kép,magabiztos tévedés
+dhujc8,1,the los angeles lakers commemorate kidneys harvested in china by giving chairman xi a jersey,-0.21213731,-0.2269333,-0.011754119,0.00012949432,0,kép,magabiztos tévedés
+cm9nje,1,this pile of trimmed pubic hair on the floor,-0.21168105,-0.2074463,-0.031682327,0.0001445526,0,szöveg,magabiztos tévedés
+b63z5t,0,theres a winking power outlet at the hospital im at,0.12233869,0.4275435,-0.0009978015,0.9998386,1,kép,magabiztos tévedés
+b5ldql,1,the moon lined up perfectly and made this giant shadow man that watches you while you sleep,-0.19686735,-0.23317337,-0.02074548,0.00016804309,0,kép,magabiztos tévedés

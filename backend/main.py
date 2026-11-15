@@ -11,6 +11,7 @@ if hasattr(sys.stderr, "reconfigure"):
 import requests
 import torch
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
@@ -94,6 +95,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Fake News Detection API is running"}
+
+
+FAVICON = BASE_DIR / "frontend" / "public" / "favicon.svg"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Ugyanaz az ikon, mint a frontendé (a böngésző magától kéri le)."""
+    if FAVICON.exists():
+        return FileResponse(FAVICON, media_type="image/svg+xml")
+    return Response(status_code=204)
 
 
 @app.get("/model-info")
