@@ -23,3 +23,6 @@ Thumbs.db
 # Kísérleti kimenetek (a Kaggle-ről letöltve; a .pt-k amúgy is ignorálva)
 results/models/
 results/preds/
+
+# Demóképek (Reddit-felhasználók fotói, nem terjesztjük)
+demo/*.jpg

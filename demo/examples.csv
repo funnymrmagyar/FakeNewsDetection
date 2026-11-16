@@ -1,0 +1,11 @@
+id,image,title,true_label,expected,note
+bis63b,bis63b.jpg,this bagel shop has a mouthwash station to help aid in oniongarlic breath,real,real,a szöveg dönt
+bwn7cv,bwn7cv.jpg,at this mall the cracks are darker because no one wants to step on them,real,real,a szöveg dönt
+cgyepz,cgyepz.jpg,after years of use my id has been burnt into the plastic cover of my wallet,real,real,a szöveg dönt
+dkd9kv,dkd9kv.jpg,stanfords particle accelerator,real,real,a kép dönt
+cc6rij,cc6rij.jpg,these humansized decoration pots,real,real,a kép dönt
+co4wmmu,co4wmmu.jpg,taking a shower,fake,fake,a kép dönt
+3usqn4,3usqn4.jpg,the war on christmas is here are you armed and ready,fake,fake,a szöveg dönt
+ceo915,ceo915.jpg,beginning of the civil rights movement,fake,fake,a szöveg dönt
+72257o,72257o.jpg,bear about to attack a car,fake,real,tévedés: a kép félreviszi
+7khb1v,7khb1v.jpg,sleeping greyhound,real,fake,tévedés: a kép félreviszi
